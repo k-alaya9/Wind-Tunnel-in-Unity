@@ -1,0 +1,86 @@
+#pragma kernel CSMain
+
+struct Particle
+{
+    float3 position;
+    float3 velocity;
+    float3 currentForce;
+    float density;
+    float pressure;
+};
+
+RWStructuredBuffer<Particle> particles;
+float deltaTime;
+float smoothingRadius;
+float stiffness;
+float restDensity;
+float viscosity;
+float3 gravity;
+float3 boxSize;
+float PI = 3.1415926535897932384626433832795028841971;
+[numthreads(256, 1, 1)]
+void CSMain (uint3 id : SV_DISPATCHTHREADID)
+{
+    uint i = id.x;
+
+    // Load particle data
+    Particle p = particles[i];
+
+    // Calculate density
+    float density = 0;
+    for (uint j = 0; j < particles.Length; j++)
+    {
+        if (i == j) continue;
+        float3 dir = particles[j].position - p.position;
+        float r = length(dir);
+        if (r < smoothingRadius)
+        {
+            density += pow( abs(smoothingRadius - r), 3);
+        }
+    }
+    p.density *= 315.0f / (64.0f * PI * pow(abs(smoothingRadius), 9));
+
+    // Calculate pressure
+    p.pressure = stiffness * (p.density - restDensity);
+
+    // Calculate forces
+    float3 pressureForce = float3(0, 0, 0);
+    float3 viscosityForce = float3(0, 0, 0);
+    for (uint l = 0; l < particles.Length; l++)  // Renamed loop variable to 'l'
+    {
+        if (i == l) continue;
+        float3 dir = particles[l].position - p.position; // Changed this line
+        float r = length(dir);
+        if (r < smoothingRadius)
+        {
+            // Pressure force
+            float pressure = particles[l].pressure;
+            if (particles[l].density > 0) // Avoid division by zero
+            {
+                pressureForce += normalize(dir) * (p.pressure + pressure) / (2 * particles[l].density) * (-45.0f / (PI * pow(smoothingRadius, 6))) * pow(smoothingRadius - r, 2);
+            }
+
+            // Viscosity force
+            viscosityForce += viscosity * (particles[l].velocity - p.velocity) / particles[l].density * (45.0f / (PI * pow(smoothingRadius, 6))) * (smoothingRadius - r);
+        }
+    }
+
+    // Combine forces and update velocity
+    p.currentForce = gravity + pressureForce + viscosityForce;
+    // float3 force = pressureForce + viscosityForce + gravity;
+    // p.velocity += p.currentForce * deltaTime;
+    float3 vel = p.velocity + ((p.currentForce) *deltaTime);
+    // Update position
+    p.position += vel * deltaTime;
+
+            // Check if particle is outside bounds and clamp position if necessary
+        if (p.position.x < 0 || p.position.x > boxSize.x)
+            p.position.x = 0;
+        if (p.position.y < 0 || p.position.y > boxSize.y)
+            p.position.y = 0;
+        if (p.position.z < 0 || p.position.z > boxSize.z)
+            p.position.z = 0;
+
+    // Write back updated particle data
+    particles[i] = p;
+}
