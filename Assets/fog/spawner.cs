@@ -1,170 +1,49 @@
-// using System.Collections;
-// using System.Collections.Generic;
-// using UnityEngine;
-// public class spawner : MonoBehaviour
-// {
-//     public GameObject particlePrefab;
-//     public int numParticles = 100;
-//     public float particleSpacing = 0.2f;
-//     public float smoothingRadius = 0.4f;
-//     public float stiffness = 1.0f;
-//     public float restDensity = 1.0f;
-//     public float viscosity = 0.1f;
-//     public float gravity = 9.81f;
-//     public Transform spawnArea;
-//     private GameObject[] particles;
-//     private Vector3[] positions;
-//     private Vector3[] velocities;
-//     private Vector2[] densities;
-
-//     void Start()
-//     {
-//         particles = new GameObject[numParticles];
-//         positions = new Vector3[numParticles];
-//         velocities = new Vector3[numParticles];
-//         densities = new Vector2[numParticles];
-
-//         // Spawn particles
-//         for (int i = 0; i < numParticles; i++)
-//         {
-//             Vector3 spawnPos = spawnArea.position + Random.insideUnitSphere * particleSpacing;
-//             particles[i] = Instantiate(particlePrefab, spawnPos, Quaternion.identity);
-//             positions[i] = spawnPos;
-//             velocities[i] = Vector3.zero;
-//             densities[i] = Vector2.zero;
-//         }
-//     }
-
-//     void Update()
-//     {
-//         FixedUpdate();
-//     }
-
-//     void FixedUpdate()
-//     {
-//         // Calculate densities
-//         for (int i = 0; i < numParticles; i++)
-//         {
-//             densities[i] = CalculateDensity(i);
-//         }
-
-//         // Calculate pressure forces and viscosity
-//         for (int i = 0; i < numParticles; i++)
-//         {
-//             Vector3 pressureForce = CalculatePressureForce(i);
-//             Vector3 viscosityForce = CalculateViscosity(i);
-//             Vector3 gravityForce = Vector3.down * gravity;
-
-//             // Apply forces
-//             velocities[i] += (pressureForce + viscosityForce + gravityForce) * Time.fixedDeltaTime;
-//             velocities[i].z=0;
-//             velocities[i].y=0;
-//         }
-
-//         // Update positions
-//         for (int i = 0; i < numParticles; i++)
-//         {
-//             positions[i] += velocities[i] * Time.fixedDeltaTime;
-//             particles[i].transform.position = positions[i] ;
-//         }
-//     }
-
-//     Vector2 CalculateDensity(int particleIndex)
-//     {
-//         float density = 0;
-
-//         for (int i = 0; i < numParticles; i++)
-//         {
-//             if (i == particleIndex)
-//                 continue;
-
-//             float r = Vector3.Distance(positions[particleIndex], positions[i]);
-//             if (r >= smoothingRadius)
-//                 continue;
-
-//             density += Mathf.Pow(smoothingRadius - r, 3);
-//         }
-
-//         density *= 315.0f / (64.0f * Mathf.PI * Mathf.Pow(smoothingRadius, 9));
-//         return new Vector2(density, 0); // Return density and ignore near density for now
-//     }
-
-//     Vector3 CalculatePressureForce(int particleIndex)
-//     {
-//         float pressure = stiffness * (densities[particleIndex].x - restDensity);
-//         Vector3 pressureForce = Vector3.zero;
-
-//         for (int i = 0; i < numParticles; i++)
-//         {
-//             if (i == particleIndex)
-//                 continue;
-
-//             Vector3 dir = positions[particleIndex] - positions[i];
-//             float r = dir.magnitude;
-//             if (r >= smoothingRadius)
-//                 continue;
-
-//             pressureForce += dir.normalized * pressure * (1.0f / densities[i].x) * (-45.0f / (Mathf.PI * Mathf.Pow(smoothingRadius, 6))) * Mathf.Pow(smoothingRadius - r, 2);
-//         }
-
-//         return pressureForce;
-//     }
-
-//     Vector3 CalculateViscosity(int particleIndex)
-//     {
-//         Vector3 viscosityForce = Vector3.zero;
-
-//         for (int i = 0; i < numParticles; i++)
-//         {
-//             if (i == particleIndex)
-//                 continue;
-
-//             Vector3 dir = positions[i] - positions[particleIndex];
-//             float r = dir.magnitude;
-//             if (r >= smoothingRadius)
-//                 continue;
-
-//             viscosityForce += viscosity * (velocities[i] - velocities[particleIndex]) * (1.0f / densities[i].x) * (45.0f / (Mathf.PI * Mathf.Pow(smoothingRadius, 6))) * (smoothingRadius - r);
-//         }
-
-//         return viscosityForce;
-//     }
-// }
-    
-using System.Collections;
+using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using UnityEngine;
-
-public class spawner : MonoBehaviour
+[System.Serializable]
+[StructLayout(LayoutKind.Sequential, Size = 44)]
+public struct Particle
 {
+    public float pressure;
+    public float density;
+    public Vector3 currentForce;
+    public Vector3 velocity;
+    public Vector3 position;
+}
+public class spawner : MonoBehaviour
+{   
+
+    public int numParticlesToDisplay=100;
     public ComputeShader computeShader;
     public Mesh particleMesh;
     public Material material;
-    public int numParticles = 1000;
-    public float particleSpacing = 0.2f;
-    public float smoothingRadius = 0.4f;
-    public float stiffness = 1.0f;
-    public float restDensity = 1.0f;
-    public float viscosity = 0.1f;
-    public float gravity = 9.81f;
-    public Transform spawnArea;
+   public Vector3Int numToSpawn = new Vector3Int(10,10,10);
+   private int numParticles;
+    public Vector3 spawnBoxCenter = new Vector3(0,3,0);
+    public Vector3 spawnBox = new Vector3(4,2,1.5f);
     public Vector3 boxSize;
-
+    public float particleRadius = 0.1f;
+    public float boundDamping = -0.3f;
+    public float viscosity = -0.003f;
+    public float particleMass = 1f;
+    public float gasConstant = 2f; 
+    public float restingDensity = 1f; 
+    public float deltaTime = 0.0001f;
+    public float gravity=-9.8f;
+    private Particle[] particles;
     private ComputeBuffer particleBuffer;
+    private ComputeBuffer renderBuffer;
     private ComputeBuffer argsBuffer;
     private Bounds bounds;
-    public float deltaTime=0.0001f;
     private static readonly int SizeProperty = Shader.PropertyToID("_size");
     private static readonly int ParticlesBufferProperty = Shader.PropertyToID("_particles");
 
-    struct Particle
-    {
-        public Vector3 position;
-        public Vector3 velocity;
-        public Vector3 currentForce;
-        public float density;
-        public float pressure;
-    }
+    private int kernelComputeDensityPressure;
+    private int kernelComputeForces;
+    private int kernelIntegrate;
+
+    private Particle[] renderParticles;
 
     void Awake()
     {
@@ -175,78 +54,124 @@ public class spawner : MonoBehaviour
 
     void InitParticles()
     {
-        Particle[] particles = new Particle[numParticles];
-        for (int i = 0; i < numParticles; i++)
+Vector3 spawnTopLeft = spawnBoxCenter - spawnBox / 2;
+        List<Particle> _particles = new List<Particle>();
+
+        for (int x = 0; x < numToSpawn.x; x++)
         {
-            Vector3 spawnPos = spawnArea.position + Random.insideUnitSphere * particleSpacing;
-            particles[i] = new Particle
+            for (int y = 0; y < numToSpawn.y; y++)
             {
-                position = spawnPos,
-                velocity= new Vector3(0.5f,0,0)
-            };
+                for (int z = 0; z < numToSpawn.z; z++)
+                {
+                    Vector3 spawnPosition = spawnTopLeft + new Vector3(x * particleRadius * 2, y * particleRadius * 2, z * particleRadius * 2) + Random.onUnitSphere * particleRadius * 0.1f;
+                    Particle p = new Particle
+                    {
+                        position = spawnPosition
+                    };
+
+                    _particles.Add(p);
+                }
+            }
         }
-
-        particleBuffer = new ComputeBuffer(numParticles,44);
-        particleBuffer.SetData(particles);
-
+        numParticles=_particles.Count;
+        renderParticles = new Particle[numParticlesToDisplay];
+        particleBuffer = new ComputeBuffer(numParticles, 44);
+        particleBuffer.SetData(_particles.ToArray());
+        particles = _particles.ToArray();
     }
-private int Kernel;
+
     void InitBuffers()
     {
-        Kernel = computeShader.FindKernel("CSMain");
-        uint[] args ={ particleMesh.GetIndexCount(0), (uint)numParticles, particleMesh.GetIndexStart(0), particleMesh.GetBaseVertex(0),
-        0 };
+        uint[] args = { particleMesh.GetIndexCount(0), (uint)numParticles, particleMesh.GetIndexStart(0), particleMesh.GetBaseVertex(0), 0 };
         argsBuffer = new ComputeBuffer(1, args.Length * sizeof(uint), ComputeBufferType.IndirectArguments);
         argsBuffer.SetData(args);
-        material.SetFloat(SizeProperty, 1.0f);
-        material.SetBuffer(ParticlesBufferProperty, particleBuffer);
+          renderBuffer = new ComputeBuffer(numParticlesToDisplay, 44); 
+
         RunComputeShader();
     }
-    private void FixedUpdate(){
-    RunComputeShader();
-    computeShader.Dispatch(Kernel,numParticles, 1, 1);
 
-    Graphics.DrawMeshInstancedIndirect(particleMesh, 0, material, bounds, argsBuffer, castShadows: UnityEngine.Rendering.ShadowCastingMode.Off);
+    private void FixedUpdate()
+    {
+        // RunComputeShader();
+        // computeShader.SetFloat("timestep", deltaTime);
+        // computeShader.SetVector("boxSize", boxSize);
 
+
+        // computeShader.Dispatch(kernelComputeDensityPressure, numParticles / 100, 1, 1);
+        // computeShader.Dispatch(kernelComputeForces, numParticles / 100, 1, 1);
+        // computeShader.Dispatch(kernelIntegrate, numParticles / 100, 1, 1);
+
+        // material.SetFloat(SizeProperty, 16.0f);
+        // material.SetBuffer(ParticlesBufferProperty, particleBuffer);
+
+        // Graphics.DrawMeshInstancedIndirect(particleMesh, 0, material, bounds, argsBuffer, castShadows: UnityEngine.Rendering.ShadowCastingMode.Off);
     }
+
     private void Update()
     {
 
-    Graphics.DrawMeshInstancedIndirect(particleMesh, 0, material,bounds, argsBuffer, castShadows: UnityEngine.Rendering.ShadowCastingMode.Off);
-
+        RunComputeShader();
+        // particleBuffer.GetData(particles);
+        // for (int i = 0; i < particles.Length; i++)
+        // {
+        //  Debug.Log("density "+i+" is :"+particles[i].density);   
+        // }
+        
+        Graphics.DrawMeshInstancedIndirect(particleMesh, 0, material, bounds, argsBuffer, castShadows: UnityEngine.Rendering.ShadowCastingMode.Off);
     }
 
     void RunComputeShader()
-    {
-        // Particle[] particles = new Particle[numParticles];
-        // particleBuffer.GetData(particles);
+    {   
+        kernelComputeDensityPressure = computeShader.FindKernel("ComputeDensityPressure");
+        kernelComputeForces = computeShader.FindKernel("ComputeForces");
+        kernelIntegrate = computeShader.FindKernel("Integrate");
 
-        // for (int i = 0; i < numParticles; i++)
-        // {
-        //     Debug.Log("Particle " + i + " initial position: " + particles[i].position);
-        // }
-        computeShader.SetFloat("deltaTime",deltaTime);
-        computeShader.SetFloat("smoothingRadius", smoothingRadius);
-        computeShader.SetFloat("stiffness", stiffness);
-        computeShader.SetFloat("restDensity", restDensity);
+        computeShader.SetFloat("gravity",gravity);
+        computeShader.SetFloat("particleMass", particleMass);
         computeShader.SetFloat("viscosity", viscosity);
-        computeShader.SetVector("boxSize",boxSize);
-        computeShader.SetVector("gravity", new Vector3(0, -gravity, 0));
-        computeShader.SetBuffer(Kernel, "particles", particleBuffer);
+        computeShader.SetFloat("gasConstant", gasConstant);
+        computeShader.SetFloat("restDensity", restingDensity);
+        computeShader.SetFloat("boundDamping", boundDamping);
+        computeShader.SetFloat("radius", particleRadius);
+        computeShader.SetFloat("radius2", particleRadius * particleRadius);
+        computeShader.SetFloat("radius3", particleRadius * particleRadius * particleRadius);
+        computeShader.SetFloat("radius4", particleRadius * particleRadius * particleRadius * particleRadius);
+        computeShader.SetFloat("radius5", particleRadius * particleRadius * particleRadius * particleRadius * particleRadius);
+        computeShader.SetFloat("pi", 3.1415926535897932384626433832795028841971f);
+
+        computeShader.SetFloat("timestep", deltaTime);
+        computeShader.SetVector("boxSize", boxSize);
+
+        computeShader.SetBuffer(kernelComputeDensityPressure, "_particles", particleBuffer);
+        computeShader.SetBuffer(kernelComputeForces, "_particles", particleBuffer);
+        computeShader.SetBuffer(kernelIntegrate, "_particles", particleBuffer);
 
 
-        // particleBuffer.GetData(particles);
-        // for (int i = 0; i < numParticles; i++)
-        // {
-        //     Debug.Log("Particle " + i + " updated position: " + particles[i].position);
-        // }
+
+        int threadGroups = Mathf.CeilToInt(numParticles / 100.0f);
+
+        computeShader.Dispatch(kernelComputeDensityPressure, threadGroups, 1, 1);
+        computeShader.Dispatch(kernelComputeForces, threadGroups, 1, 1);
+        computeShader.Dispatch(kernelIntegrate, threadGroups, 1, 1);
+
+
+        particleBuffer.GetData(particles);
+        System.Array.Copy(particles, renderParticles, numParticlesToDisplay);
+        renderBuffer.SetData(renderParticles);
+
+        material.SetFloat(SizeProperty, 16.0f);
+        material.SetBuffer(ParticlesBufferProperty, renderBuffer);
     }
 
-    void OnDestroy()
+        private void OnDrawGizmos()
     {
-            particleBuffer.Release();
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireCube(Vector3.zero, boxSize);
 
-            argsBuffer.Release();
-        
+        if (!Application.isPlaying)
+        {
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireCube(spawnBoxCenter, spawnBox);
+        }
     }
 }
