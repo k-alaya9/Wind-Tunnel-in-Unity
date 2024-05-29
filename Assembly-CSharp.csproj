@@ -64,7 +64,12 @@
     <Analyzer Include="C:\Users\DELL\Desktop\2022.3.22f1\Editor\Data\Tools\Unity.SourceGenerators\Unity.Properties.SourceGenerator.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\fog\Structure.cs" />
+    <Compile Include="Assets\fog\Gridcell.cs" />
+    <Compile Include="Assets\fog\MeshTriangulator.cs" />
+    <Compile Include="Assets\fog\grid.cs" />
     <Compile Include="Assets\fog\spawner.cs" />
+    <Compile Include="Assets\fog\NewBehaviourScript.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\fog\ParticlesShader.shader" />
