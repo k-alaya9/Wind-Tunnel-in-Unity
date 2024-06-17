@@ -25,19 +25,19 @@ public class spawner : MonoBehaviour
     public ComputeShader computeShader;
     public Mesh particleMesh;
     public Material material;
-    public Vector3Int numToSpawn = new Vector3Int(10, 10, 10);
-    private int numParticles;
+    private Vector3 numToSpawn = new Vector3(Staticdata.numToSpawn, Staticdata.numToSpawn, Staticdata.numToSpawn);
+    public int numParticles;
     public Vector3 spawnBoxCenter = new Vector3(0, 3, 0);
     public Vector3 spawnBox = new Vector3(4, 2, 1.5f);
     public Vector3 boxSize;
-    public float particleRadius = 0.1f;
-    public float boundDamping = -0.3f;
-    public float viscosity = -0.003f;
+    private float particleRadius = Staticdata.particleRadius;
+    private float boundDamping = -Staticdata.boundDamping;
+    private float viscosity = Staticdata.viscosity;
     public float particleMass = 1f;
-    public float gasConstant = 2f;
-    public float restingDensity = 1f;
+    private float gasConstant = Staticdata.gasConstant;
+    private float restingDensity = Staticdata.restingDensity;
     public float deltaTime = 0.0001f;
-    public float gravity = -9.8f;
+    private float gravity = Staticdata.gravity;
     private Particle[] particles;
     private Particle[] initialParticles; 
     private ComputeBuffer particleBuffer;
@@ -55,7 +55,8 @@ public class spawner : MonoBehaviour
 
     private Particle[] renderParticles;
 
-    public Vector3 windSpeed = new Vector3(0, 0, 0);
+    private static float windSpeedValue=Staticdata.windSpeedValue;
+    private Vector3 windSpeed = new Vector3(-WindSpeedValue, 0, 0);
 
     // Reference to the MeshTriangulator to access the triangles
     public MeshTriangulator meshTriangulator;
@@ -67,13 +68,22 @@ public class spawner : MonoBehaviour
     private LineRenderer lineRenderer;
     public Material lineMaterial;
     public GameObject meshGameObject;
+
+    public global::System.Single BoundDamping { get => boundDamping; set => boundDamping = value; }
+    public global::System.Single Viscosity { get => viscosity; set => viscosity = value; }
+    public global::System.Single GasConstant { get => gasConstant; set => gasConstant = value; }
+    public global::System.Single RestingDensity { get => restingDensity; set => restingDensity = value; }
+    public global::System.Single Gravity { get => gravity; set => gravity = value; }
+    public global::System.Single ParticleRadius { get => particleRadius; set => particleRadius = value; }
+    public  static global::System.Single WindSpeedValue { get => windSpeedValue; set => windSpeedValue = value; }
+
     //int optimalDepth=0;
 
     void Awake()
     {
         //octree = new Octree(octreeBounds, maxDepth, maxTriangles);
         //MeshTriangulator.SetOctree(octree);
-
+        Debug.Log(numToSpawn.x);
         InitParticles();
         InitBuffers();
         bounds = new Bounds(Vector3.zero, boxSize);
@@ -98,7 +108,7 @@ public class spawner : MonoBehaviour
             {
                 for (int z = 0; z < numToSpawn.z; z++)
                 {
-                    Vector3 spawnPosition = spawnTopLeft + new Vector3(x * particleRadius * 2, y * particleRadius * 2, z * particleRadius * 2) + Random.onUnitSphere * particleRadius * 0.1f;
+                    Vector3 spawnPosition = spawnTopLeft + new Vector3(x * ParticleRadius * 2, y * ParticleRadius * 2, z * ParticleRadius * 2) + Random.onUnitSphere * ParticleRadius * 0.1f;
                     Particle p = new Particle
                     {
                         //velocity = new Vector3(Random.value, Random.value, Random.value)*100 , // Initialize with some random velocity
@@ -215,16 +225,16 @@ public class spawner : MonoBehaviour
 
         computeShader.SetInt("particleLength", numParticles);
         computeShader.SetFloat("particleMass", particleMass);
-        computeShader.SetFloat("viscosity", viscosity);
-        computeShader.SetFloat("gasConstant", gasConstant);
-        computeShader.SetFloat("restDensity", restingDensity);
-        computeShader.SetFloat("boundDamping", boundDamping);
+        computeShader.SetFloat("viscosity", Viscosity);
+        computeShader.SetFloat("gasConstant", GasConstant);
+        computeShader.SetFloat("restDensity", RestingDensity);
+        computeShader.SetFloat("boundDamping", BoundDamping);
 
-        computeShader.SetFloat("radius", particleRadius);
-        computeShader.SetFloat("radius2", particleRadius * particleRadius);
-        computeShader.SetFloat("radius3", particleRadius * particleRadius * particleRadius);
-        computeShader.SetFloat("radius4", particleRadius * particleRadius * particleRadius * particleRadius);
-        computeShader.SetFloat("radius5", particleRadius * particleRadius * particleRadius * particleRadius * particleRadius);
+        computeShader.SetFloat("radius", ParticleRadius);
+        computeShader.SetFloat("radius2", ParticleRadius * ParticleRadius);
+        computeShader.SetFloat("radius3", ParticleRadius * ParticleRadius * ParticleRadius);
+        computeShader.SetFloat("radius4", ParticleRadius * ParticleRadius * ParticleRadius * ParticleRadius);
+        computeShader.SetFloat("radius5", ParticleRadius * ParticleRadius * ParticleRadius * ParticleRadius * ParticleRadius);
 
         computeShader.SetFloat("pi", Mathf.PI);
         computeShader.SetFloat("densityWeightConstant", 0.00497359197162172924277761760539f);
@@ -233,7 +243,7 @@ public class spawner : MonoBehaviour
 
         computeShader.SetFloat("timestep", deltaTime);
         computeShader.SetVector("boxSize", boxSize);
-        computeShader.SetFloat("gravity", gravity);
+        computeShader.SetFloat("gravity", Gravity);
         computeShader.SetVector("windSpeed", windSpeed);
 
         computeShader.SetBuffer(kernelComputeDensityPressure, "_particles", particleBuffer);
@@ -412,8 +422,8 @@ public class spawner : MonoBehaviour
                 {
                     if (IsPointInTriangle(v0, v1, v2, particlePosition))
                     {
-                        particle.velocity = Vector3.Reflect(particle.velocity, triangleNormal) * boundDamping;
-                        particle.position += triangleNormal * particleRadius;
+                        particle.velocity = Vector3.Reflect(particle.velocity, triangleNormal) * BoundDamping;
+                        particle.position += triangleNormal * ParticleRadius;
                         particles[particleIndex] = particle; // Update the particle in the main array
                     }
                 }
@@ -445,7 +455,7 @@ public class spawner : MonoBehaviour
     bool IsParticleOnPlane(Vector3 normal, Vector3 vertex, Vector3 particlePosition)
     {
         float distance = Vector3.Dot(normal, particlePosition - vertex);
-        return Mathf.Abs(distance) <= particleRadius;
+        return Mathf.Abs(distance) <= ParticleRadius;
     }
 
     bool IsPointInTriangle(Vector3 v0, Vector3 v1, Vector3 v2, Vector3 point)
